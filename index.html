@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Devtraco Estate Navigation</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    #welcome {
+      background: url('https://devtraco.com/wp-content/uploads/2021/01/Untitled-design-2.jpg') no-repeat center center;
+      background-size: cover;
+      color: white;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      animation: slideIn 1.2s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-50px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #welcome h1 {
+      font-size: 3em;
+      margin-bottom: 10px;
+    }
+
+    #welcome p {
+      font-size: 1.3em;
+      max-width: 600px;
+      padding: 10px;
+    }
+
+    #start-btn {
+      margin-top: 20px;
+      padding: 12px 24px;
+      background-color: #28a745;
+      color: white;
+      font-size: 1.1em;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+
+    nav {
+      background-color: #333;
+      overflow: hidden;
+    }
+
+    nav a {
+      float: left;
+      display: block;
+      color: white;
+      text-align: center;
+      padding: 14px 20px;
+      text-decoration: none;
+      transition: background-color 0.3s;
+    }
+
+    nav a:hover {
+      background-color: #575757;
+    }
+
+    #map {
+      height: 85vh;
+      display: none;
+    }
+
+    #search-bar {
+      display: none;
+      padding: 10px;
+      background: #f8f9fa;
+      text-align: center;
+    }
+
+    #search-location {
+      padding: 8px;
+      width: 250px;
+    }
+
+    #search-btn {
+      padding: 8px 16px;
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    .section {
+      padding: 40px;
+      display: none;
+    }
+
+    #home, #about, #contact {
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <div id="welcome">
+    <h1>Welcome to Devtraco Estate</h1>
+    <p>Devtraco Estate is one of the premier residential estates in Ghana, offering serene environments and modern living. It was founded with a vision to provide quality housing and vibrant communities in the Greater Accra Region.</p>
+    <button id="start-btn">Enter</button>
+  </div>
+
+  <nav>
+    <a href="#home" onclick="showSection('home')">Home</a>
+    <a href="#about" onclick="showSection('about')">About</a>
+    <a href="#contact" onclick="showSection('contact')">Contact</a>
+  </nav>
+
+  <div id="search-bar">
+    <input type="text" id="search-location" placeholder="Enter destination (e.g., Accra Mall)" />
+    <button id="search-btn">Search</button>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="home" class="section">
+    <h2>Home</h2>
+    <p>Welcome to the Devtraco Estate digital navigation system. Use the map to locate buildings and get voice-guided directions across the estate and Ghana.</p>
+  </div>
+
+  <div id="about" class="section">
+    <h2>About Devtraco Estate</h2>
+    <p>Devtraco Estate is a leading housing estate in Ghana. This app offers real-time positioning, search, and route planning. <a href="https://www.devtraco.com/" target="_blank">Visit official website</a>.</p>
+  </div>
+
+  <div id="contact" class="section">
+    <h2>Contact</h2>
+    <p>Email: info@devtraco.com<br/>Phone: +233 302 812 000</p>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script>
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <script>
+    const startBtn = document.getElementById('start-btn');
+    const welcomeDiv = document.getElementById('welcome');
+    const mapDiv = document.getElementById('map');
+    const searchBar = document.getElementById('search-bar');
+    let currentInstructions = [];
+    let nextInstructionIndex = 0;
+    let userLatLng = null;
+
+    startBtn.addEventListener('click', () => {
+      welcomeDiv.style.display = 'none';
+      mapDiv.style.display = 'block';
+      searchBar.style.display = 'block';
+      setTimeout(() => map.invalidateSize(), 100);
+      speak("Welcome to Devtraco Estate navigation.");
+    });
+
+    const map = L.map('map').setView([5.7, -0.05], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const routingControl = L.Routing.control({
+      waypoints: [],
+      routeWhileDragging: true,
+      show: false,
+      geocoder: L.Control.Geocoder.nominatim()
+    }).addTo(map);
+
+    routingControl.on('routesfound', function(e) {
+      currentInstructions = e.routes[0].instructions || [];
+      nextInstructionIndex = 0;
+    });
+
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        speechSynthesis.speak(utterance);
+      }
+    }
+
+    function getDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) ** 2 +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        userLatLng = [pos.coords.latitude, pos.coords.longitude];
+        L.marker(userLatLng).addTo(map).bindPopup("You are here").openPopup();
+        map.setView(userLatLng, 15);
+      },
+      err => alert("Location access denied.")
+    );
+
+    navigator.geolocation.watchPosition(
+      pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+
+        if (currentInstructions.length > 0 && nextInstructionIndex < currentInstructions.length) {
+          const instr = currentInstructions[nextInstructionIndex];
+          const instrCoord = instr.latLng;
+          const dist = getDistance(lat, lng, instrCoord.lat, instrCoord.lng);
+
+          if (dist <= 30) {
+            speak(instr.text);
+            nextInstructionIndex++;
+          }
+        }
+      },
+      err => console.warn("Tracking error:", err),
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+    );
+
+    const searchInput = document.getElementById('search-location');
+    const searchBtn = document.getElementById('search-btn');
+
+    searchBtn.addEventListener('click', () => {
+      const query = searchInput.value;
+      if (query.trim() === '') return;
+
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+        .then(res => res.json())
+        .then(results => {
+          if (results.length > 0) {
+            const result = results[0];
+            const destLatLng = L.latLng(result.lat, result.lon);
+
+            if (!userLatLng) {
+              navigator.geolocation.getCurrentPosition(pos => {
+                userLatLng = [pos.coords.latitude, pos.coords.longitude];
+                routingControl.setWaypoints([userLatLng, destLatLng]);
+                speak(`Starting navigation to ${query}`);
+                map.setView(destLatLng, 15);
+              });
+            } else {
+              routingControl.setWaypoints([userLatLng, destLatLng]);
+              speak(`Starting navigation to ${query}`);
+              map.setView(destLatLng, 15);
+            }
+          } else {
+            alert("Location not found.");
+          }
+        });
+    });
+
+    function showSection(sectionId) {
+      document.querySelectorAll('.section').forEach(div => div.style.display = 'none');
+      document.getElementById(sectionId).style.display = 'block';
+      mapDiv.style.display = 'none';
+      searchBar.style.display = 'none';
+    }
+  </script>
+</body>
+</html>
